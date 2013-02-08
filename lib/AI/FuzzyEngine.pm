@@ -1,7 +1,7 @@
 package AI::FuzzyEngine;
 
 use 5.006;
-use version; our $VERSION = qv('v0.1.0');
+use version; our $VERSION = qv('v0.1.1');
 
 use strict;
 use warnings;
@@ -161,8 +161,7 @@ The aim was to  be able to code rules (no string parsing),
 but avoid operator overloading,
 and make it possible to split calculation into multiple steps.
 All intermediate results (memberships of sets of variables)
-should be available, and there should be no need to defuzzify variables
-just to compute any first variables.
+should be available.
 
 Credits to Ala Qumsieh and his L<AI::FuzzyInference>,
 that showed me that fuzzy is no magic.
@@ -202,7 +201,8 @@ Defuzzification is based on
 
 =item Implication
 
-I<Clip> membership function of a set according to membership degree, before the implicated memberships of all sets of a variable are taken for defuzzification: 
+I<Clip> membership function of a set according to membership degree,
+before the implicated memberships of all sets of a variable are taken for defuzzification:
 
 =item Defuzzification
 
