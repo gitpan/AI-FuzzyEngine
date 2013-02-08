@@ -1,0 +1,34 @@
+---
+abstract: 'A small Fuzzy Engine'
+author:
+  - 'Juergen Mueck <jurgen.muck@yahoo.de>'
+build_requires:
+  Carp: 0
+  List::MoreUtils: 0
+  List::Util: 0
+  Scalar::Util: 0
+  Test::More: 0
+  Test::Most: 0
+configure_requires:
+  Module::Build: 0.36
+generated_by: 'Module::Build version 0.3607'
+license: perl
+meta-spec:
+  url: http://module-build.sourceforge.net/META-spec-v1.4.html
+  version: 1.4
+name: AI-FuzzyEngine
+provides:
+  AI::FuzzyEngine:
+    file: lib/AI/FuzzyEngine.pm
+    version: v0.1.0
+  AI::FuzzyEngine::Set:
+    file: lib/AI/FuzzyEngine/Set.pm
+    version: v0.1.0
+  AI::FuzzyEngine::Variable:
+    file: lib/AI/FuzzyEngine/Variable.pm
+    version: v0.1.0
+requires:
+  perl: 5.006
+resources:
+  license: http://dev.perl.org/licenses/
+version: v0.1.0
