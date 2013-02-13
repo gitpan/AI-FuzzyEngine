@@ -1,6 +1,6 @@
 package AI::FuzzyEngine::Set;
 
-use version; our $VERSION = qv('v0.1.0');
+use version; our $VERSION = qv('v0.1.2');
 
 use strict;
 use warnings;
@@ -60,6 +60,9 @@ sub _init {
     croak "variable is not a $class"
         unless blessed $attrs{variable} && $attrs{variable}->isa($class);
 
+    croak 'Membership function is not an array ref'
+        unless ref $attrs{memb_fun} eq 'ARRAY';
+
     $self->{$_}       = $attrs{$_} for qw( variable fuzzyEngine name memb_fun);
     weaken $self->{$_}             for qw( variable fuzzyEngine );
 
@@ -81,22 +84,29 @@ sub _copy_fun {
 
 sub _interpol {
     my ($class, $fun, $val_x) = @_;
+
     my @x = @{$fun->[0]}; # speed
     my @y = @{$fun->[1]};
 
-    return $y[ 0] if $val_x <= $x[ 0];
-    return $y[-1] if $val_x >= $x[-1];
+    if (not ref $val_x eq 'PDL') {
 
-    # find block
-    my $ix = 0;
-    $ix++ while $val_x > $x[$ix] && $ix < $#x;
-    # firstidx takes longer (156ms vs. 125ms with 50_000 calls)
-    # my $ix = List::MoreUtils::firstidx { $val_x <= $_ } @x;
+        return $y[ 0] if $val_x <= $x[ 0];
+        return $y[-1] if $val_x >= $x[-1];
 
-    # interpolate
-    my $fract  = ($val_x - $x[$ix-1]) / ($x[$ix] - $x[$ix-1]);
-    my $val_y  = $y[$ix-1]  +  $fract * ($y[$ix] - $y[$ix-1]);
+        # find block
+        my $ix = 0;
+        $ix++ while $val_x > $x[$ix] && $ix < $#x;
+        # firstidx takes longer (156ms vs. 125ms with 50_000 calls)
+        # my $ix = List::MoreUtils::firstidx { $val_x <= $_ } @x;
 
+        # interpolate
+        my $fract  = ($val_x - $x[$ix-1]) / ($x[$ix] - $x[$ix-1]);
+        my $val_y  = $y[$ix-1]  +  $fract * ($y[$ix] - $y[$ix-1]);
+
+        return $val_y;
+    };
+
+    my ($val_y) = $val_x->interpolate( PDL->pdl(@x), PDL->pdl(@y) );
     return $val_y;
 }
 
@@ -192,14 +202,12 @@ sub synchronize_funs {
 
     MISSING_IN_A:
     for my $x (@xB) {
-#        next MISSING_IN_A if List::MoreUtils::any {$_ == $x} @xA;
         next MISSING_IN_A if exists $xA{$x};
         $yA_of{$x} = $class->_interpol( $funA => $x );
     };
 
     MISSING_IN_B:
     for my $x (@xA) {
-#        next MISSING_IN_B if List::MoreUtils::any {$_ == $x} @xB;
         next MISSING_IN_B if exists $xB{$x};
         $yB_of{$x} = $class->_interpol( $funB => $x );
     };
@@ -410,7 +418,7 @@ You can find documentation for this module with the perldoc command.
 
 =head1 AUTHOR
 
-Juergen Mueck, jurgen.muck@yahoo.de
+Juergen Mueck, jmueck@cpan.org
 
 =head1 COPYRIGHT
 

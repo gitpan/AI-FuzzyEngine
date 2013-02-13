@@ -1,7 +1,7 @@
 ---
-abstract: 'A small Fuzzy Engine'
+abstract: 'A growing Fuzzy Engine, PDL aware'
 author:
-  - 'Juergen Mueck <jurgen.muck@yahoo.de>'
+  - 'Juergen Mueck <jmueck@cpan.org>'
 build_requires:
   Carp: 0
   List::MoreUtils: 0
@@ -20,15 +20,15 @@ name: AI-FuzzyEngine
 provides:
   AI::FuzzyEngine:
     file: lib/AI/FuzzyEngine.pm
-    version: v0.1.1
+    version: v0.2.0
   AI::FuzzyEngine::Set:
     file: lib/AI/FuzzyEngine/Set.pm
-    version: v0.1.0
+    version: v0.1.2
   AI::FuzzyEngine::Variable:
     file: lib/AI/FuzzyEngine/Variable.pm
-    version: v0.1.0
+    version: v0.1.2
 requires:
-  perl: 5.006
+  perl: 5.008009
 resources:
   license: http://dev.perl.org/licenses/
-version: v0.1.1
+version: v0.2.0

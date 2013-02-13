@@ -6,7 +6,7 @@ use Module::Build;
 my $builder = Module::Build->new(
     module_name         => 'AI::FuzzyEngine',
     license             => 'perl',
-    dist_author         => q{Juergen Mueck <jurgen.muck@yahoo.de>},
+    dist_author         => q{Juergen Mueck <jmueck@cpan.org>},
     dist_version_from   => 'lib/AI/FuzzyEngine.pm',
     build_requires => {
         'Test::More'      => 0,
@@ -17,7 +17,7 @@ my $builder = Module::Build->new(
         'Carp'            => 0,
     },
     requires => {
-        'perl' => 5.006,
+        'perl' => 5.008009,
     },
     add_to_cleanup      => [ 'AI-FuzzyEngine-*' ],
     create_makefile_pl => 'traditional',

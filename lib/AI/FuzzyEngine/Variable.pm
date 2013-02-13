@@ -1,6 +1,6 @@
 package AI::FuzzyEngine::Variable;
 
-use version; our $VERSION = qv('v0.1.0');
+use version; our $VERSION = qv('v0.1.2');
 
 use strict;
 use warnings;
@@ -9,6 +9,8 @@ use List::MoreUtils;
 use Carp;
 
 use AI::FuzzyEngine::Set;
+
+my $set_class = _class_of_set();
 
 sub new {
     my ($class, $fuzzyEngine, @pars) = @_;
@@ -57,14 +59,59 @@ sub defuzzify {
     croak "Defuzzification not allowed for internal variables"
         if $self->is_internal;
 
-    my $s_class = 'AI::FuzzyEngine::Set';
-
     my @sets    = values %{$self->sets};
-    my @funs    = map {$_->clip_fun( $_->memb_fun => $_->degree ) } @sets;
+    my @funs    = map { $_->memb_fun } @sets;
+    my @degrees = map { $_->degree   } @sets;
 
-    my $fun_agg = $s_class->max_of_funs( @funs );
-    my $c       = $s_class->centroid( $fun_agg );
-    return $c;
+    # If all degrees are real scalars a shortcut is possible
+    if (_non_is_a_piddle(@degrees)) {
+        my $funs    = _clipped_funs( \@funs, \@degrees);
+        my $fun_agg = $set_class->max_of_funs( @$funs );
+        my $c       = $set_class->centroid( $fun_agg );
+        return $c;
+    };
+
+    # Need a function of my FuzzyEngine
+    my $fe = $self->fuzzyEngine;
+    die 'Internal: fuzzy_engine is lost' unless $fe;
+
+    # Unify dimensions of all @degrees (at least one is a pdl)
+    my @synched_degrees = $fe->_cat_array_of_piddles(@degrees)->dog;
+    my @dims_to_reshape = $synched_degrees[0]->dims;
+
+    # Make degrees flat to proceed them as lists
+    my @flat_degrees    = map {$_->flat} @synched_degrees;
+    my $flat_degrees    = PDL::cat( @flat_degrees );
+
+    # Proceed degrees of @sets as synchronized lists
+    my @degrees_per_el  = $flat_degrees->transpose->dog;
+    my @defuzzified;
+    for my $ix (reverse 0..$#degrees_per_el) {
+        my $el_degrees = $degrees_per_el[$ix];
+        # The next two lines cost much (75% of defuzzify)
+        my $funs       = _clipped_funs( \@funs, [$el_degrees->list] );
+        my $fun_agg    = $set_class->max_of_funs( @$funs );
+
+        my $c          = $set_class->centroid( $fun_agg );
+        $defuzzified[$ix] = $c;
+    };
+
+    # Build result in shape of unified membership degrees
+    my $flat_defuzzified = PDL->pdl( @defuzzified );
+    my $defuzzified      = $flat_defuzzified->reshape(@dims_to_reshape);
+    return $defuzzified;
+}
+
+sub _clipped_funs {
+    # Clip all membership functions of a variable
+    # according to the respective membership degree (array of scalar)
+    my ($funs, $degrees) = @_;
+    my @funs    = @$funs;    # Dereferencing here saves some time
+    my @degrees = @$degrees;
+    my @clipped = List::MoreUtils::pairwise {
+                     $set_class->clip_fun($a => $b)
+                  } @funs, @degrees;
+    return \@clipped;
 }
 
 sub reset {
@@ -112,11 +159,12 @@ sub _init {
             $fun   = $self->_curve_to_fun( $curve );
 
             # clip membership function to borders
-            AI::FuzzyEngine::Set->set_x_limits( $fun, $self->from => $self->to );
+            $set_class->set_x_limits( $fun, $self->from => $self->to );
         };
 
         # create a set and store it
-        my $set = AI::FuzzyEngine::Set
+        my $set_class = $self->_class_of_set();
+        my $set = $set_class
             ->new( fuzzyEngine => $self->fuzzyEngine,
                    variable    => $self,
                    name        => $set_name,
@@ -137,6 +185,13 @@ sub _init {
         *{ $set_name } = $method;
     };
 }
+
+sub _non_is_a_piddle {
+    return List::MoreUtils::none {ref $_ eq 'PDL'} @_;
+}
+
+# Might change for Variables inherited from AI::FuzzyEngine::Variable:
+sub _class_of_set { 'AI::FuzzyEngine::Set' }
 
 sub _curve_to_fun {
     # Convert input format for membership functions
@@ -172,7 +227,7 @@ You can find documentation for this module with the perldoc command.
 
 =head1 AUTHOR
 
-Juergen Mueck, jurgen.muck@yahoo.de
+Juergen Mueck, jmueck@cpan.org
 
 =head1 COPYRIGHT
 

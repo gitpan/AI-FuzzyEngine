@@ -1,12 +1,14 @@
 package AI::FuzzyEngine;
 
-use 5.006;
-use version; our $VERSION = qv('v0.1.1');
+use 5.008009;
+use version; our $VERSION = qv('v0.2.0'); # PDL aware
 
 use strict;
 use warnings;
+use Carp;
 use Scalar::Util;
 use List::Util;
+use List::MoreUtils;
 
 use AI::FuzzyEngine::Variable;
 
@@ -22,12 +24,24 @@ sub variables { @{ shift->{_variables} } };
 
 sub and {
     my ($self, @vals) = @_;
-    return List::Util::min( @vals );
+
+    # PDL awareness: any element is a piddle?
+    return List::Util::min(@vals) if _non_is_a_piddle(@vals);
+
+    _check_for_PDL();
+    my $vals = $self->_cat_array_of_piddles(@vals);
+    return $vals->mv(-1, 0)->minimum;
 }
 
 sub or {
     my ($self, @vals) = @_;
-    return List::Util::max( @vals );
+
+    # PDL awareness: any element is a piddle?
+    return List::Util::max(@vals) if _non_is_a_piddle(@vals);
+
+    _check_for_PDL();
+    my $vals = $self->_cat_array_of_piddles(@vals);
+    return $vals->mv(-1, 0)->maximum;
 }
 
 sub not {
@@ -38,7 +52,8 @@ sub not {
 sub new_variable {
     my ($self, @pars) = @_;
 
-    my $var = AI::FuzzyEngine::Variable->new($self, @pars);
+    my $variable_class = $self->_class_of_variable();
+    my $var = $variable_class->new($self, @pars);
     push @{$self->{_variables}}, $var;
     Scalar::Util::weaken $self->{_variables}->[-1];
     return $var;
@@ -50,15 +65,57 @@ sub reset {
     return $self;
 }
 
+sub _class_of_variable { 'AI::FuzzyEngine::Variable' }
+
+sub _non_is_a_piddle {
+    return List::MoreUtils::none {ref $_ eq 'PDL'} @_;
+}
+
+my $_PDL_is_imported;
+sub _check_for_PDL {
+    return if $_PDL_is_imported;
+    die "PDL not loaded"       unless $INC{'PDL.pm'};
+    die "PDL::Core not loaded" unless $INC{'PDL/Core.pm'};
+    $_PDL_is_imported = 1;
+}
+
+sub _cat_array_of_piddles {
+    my ($class, @vals)  = @_;
+
+    # TODO: Rapid return if @_ == 1 (isa piddle)
+    # TODO: join "-", ndims -> Schnellcheck auf gleiche Dim.
+
+    # All elements must get piddles
+    my @pdls  = map { PDL::Core::topdl($_) } @vals;
+
+    # Get size of wrapping piddle (using a trick)
+    # applying valid expansion rules for element wise operations
+    my $zeros = PDL->pdl(0);
+    #        v-- does not work due to threading mechanisms :-((
+    # $zeros += $_ for @pdls;
+    # Avoid threading!
+    for my $p (@pdls) {
+        croak "Empty piddles are not allowed" if $p->isempty();
+        eval { $zeros = $zeros + $p->zeros(); 1
+            } or croak q{Can't expand piddles to same size};
+    }
+
+    # Now, cat 'em by expanding them on the fly
+    my $vals = PDL::cat( map {$_ + $zeros} @pdls );
+    return $vals;
+};
+
 1;
 
 =pod
 
 =head1 NAME
 
-AI::FuzzyEngine - A small Fuzzy Engine
+AI::FuzzyEngine - A growing Fuzzy Engine, PDL aware
 
 =head1 SYNOPSIS
+
+=head2 Regular Perl - without PDL
 
     use AI::FuzzyEngine;
 
@@ -117,8 +174,9 @@ AI::FuzzyEngine - A small Fuzzy Engine
 
     # RULES and their application
 
-    # a) first step, result is $saturation, an intermediate set
-    # implicit application of 'and'
+    # a) If necessary, calculate some internal variables first. 
+    # They will not be defuzzified (in fact, $saturation can't)
+    # Implicit application of 'and'
     # Multiple calls to a membership function
     # are similar to 'or' operations:
     $saturation->low( $flow->small(), $cap->avg()  );
@@ -130,7 +188,6 @@ AI::FuzzyEngine - A small Fuzzy Engine
                                 $fe->and( $flow->huge(), $cap->high() ),
                        ),
                  );
-
     $saturation->over( $fe->not( $flow->small() ),
                        $fe->not( $flow->med()   ),
                        $flow->huge(),
@@ -138,17 +195,83 @@ AI::FuzzyEngine - A small Fuzzy Engine
                  );
     $saturation->over( $flow->huge(), $fe->not( $cap->high() ) );
 
-    # b) second step, deduce output variable from internal state of saturation
+    # b) deduce output variable(s) (here: from internal variable $saturation)
     $green->decrease( $saturation->low()  );
     $green->ok(       $saturation->crit() );
     $green->increase( $saturation->over() );
 
-    # All sets provide the respective membership degrees of their variables: 
-    my $saturation_is_over = $saturation->over(); # no defuzzification!
+    # All sets provide their respective membership degrees: 
+    my $saturation_is_over = $saturation->over(); # This is no defuzzification!
     my $green_is_ok        = $green->ok();
 
-    # Defuzzification ( is a matter of the fuzzy set )
+    # Defuzzification ( is a matter of the fuzzy variable )
     my $delta_green = $green->defuzzify(); # -5 ... 5
+
+=head2 Using PDL and its threading capability
+
+    use PDL;
+    use AI::FuzzyEngine;
+
+    # (Probably a stupide example)
+    my $fe        = AI::FuzzyEngine->new();
+
+    # Declare variables as usual
+    my $severity  = $fe->new_variable( 0 => 10,
+                          low  => [0, 1, 3, 1, 5, 0       ],
+                          high => [      3, 0, 5, 1, 10, 1],
+                        );
+
+    my $threshold = $fe->new_variable( 0 => 1,
+                           low  => [0, 1, 0.2, 1, 0.8, 0,     ],
+                           high => [      0.2, 0, 0.8, 1, 1, 1],
+                         );
+    
+    my $problem   = $fe->new_variable( -0.5 => 2,
+                           no  => [-0.5, 0, 0, 1, 0.5, 0, 1, 0],
+                           yes => [         0, 0, 0.5, 1, 1, 1, 1.5, 1, 2, 0],
+                         );
+
+    # Input data is a pdl of arbitrary dimension
+    my $data = pdl( [0, 4, 6, 10] );
+    $severity->fuzzify( $data );
+
+    # Membership degrees are piddles now:
+    print 'Severity is high: ', $severity->high, "\n";
+    # [0 0.5 1 1]
+
+    # Other variables might be piddles of other dimensions,
+    # but all variables must be expandible to a common 'wrapping' piddle
+    # ( in this case a 4x2 matrix with 4 colums and 2 rows)
+    my $level = pdl( [0.6],
+                     [0.2],
+                   );
+    $threshold->fuzzify( $level );
+
+    print 'Threshold is low: ', $threshold->low(), "\n";
+    # [
+    #  [0.33333333]
+    #  [         1]
+    # ]
+
+    # Apply some rules
+    $problem->yes( $severity->high,  $threshold->low );
+    $problem->no( $fe->not( $problem->yes )  );
+
+    # Fuzzy results are represented by the membership degrees of sets 
+    print 'Problem yes: ', $problem->yes,  "\n";
+    # [
+    #  [         0 0.33333333 0.33333333 0.33333333]
+    #  [         0        0.5          1          1]
+    # ]
+
+    # Defuzzify the output variables
+    # Caveat: This includes some non-threadable operations up to now
+    my $problem_ratings = $problem->defuzzify();
+    print 'Problems rated: ', $problem_ratings;
+    # [
+    #  [         0 0.60952381 0.60952381 0.60952381]
+    #  [         0       0.75          1          1]
+    # ]
 
 =head1 EXPORT
 
@@ -163,6 +286,11 @@ and make it possible to split calculation into multiple steps.
 All intermediate results (memberships of sets of variables)
 should be available.
 
+Beginning with v0.2.0 it is PDL aware,
+meaning that it can handle piddles (PDL objects)
+when running the fuzzy operations.
+More information on PDL can be found at L<http://pdl.perl.org/>. 
+
 Credits to Ala Qumsieh and his L<AI::FuzzyInference>,
 that showed me that fuzzy is no magic.
 I learned a lot by analyzing his code,
@@ -172,26 +300,26 @@ and he provides good information and links to learn more about Fuzzy Logics.
 
 The L<AI::FuzzyEngine> object defines and provides
 the elementary operations for fuzzy sets.
-All set memberships are values from 0 to 1.
-Up to now there is no choice with regard how to operate on sets:
+All membership degrees of sets are values from 0 to 1.
+Up to now there is no choice with regard to how to operate on sets:
 
 =over 2
 
 =item C<< $fe->or( ... ) >> (Disjunction)
 
-I<Maximum> of membership degrees
+is I<Maximum> of membership degrees
 
 =item C<< $fe->and( ... ) >> (Conjunction)
 
-I<Minimum> of membership degrees
+is I<Minimum> of membership degrees
 
 =item C<< $fe->not( $var->$set ) >> (Negation)
 
-I<1-degree> of membership
+is I<1-degree> of membership degree
 
 =item Aggregation of rules (Disjunction)
 
-I<Maximum>
+is I<Maximum>
 
 =back
 
@@ -216,12 +344,12 @@ Creation of an C<AI::FuzzyEngine> object by
 
     my $fe = AI::FuzzyEngine->new();
 
-This function has no parameters, but provides the fuzzy methods
+This function has no parameters. It provides the fuzzy methods
 C<or>, C<and> and C<not>, as listed above.
-I plan to introduce alternative fuzzy operations,
+If needed, I will introduce alternative fuzzy operations,
 they will be configured as arguments to C<new>. 
 
-Once created, the engine can create fuzzy variables by C<new_variable>:
+Once built, the engine can create fuzzy variables by C<new_variable>:
 
     my $var = $fe->new_variable( $from => $to,
                         $name_of_set1 => [$x11, $y11, $x12, $y12, ... ],
@@ -232,7 +360,10 @@ Once created, the engine can create fuzzy variables by C<new_variable>:
 Result is an L<AI::FuzzyEngine::Variable>.
 The name_of_set strings are taken to assign corresponding methods
 for the respective fuzzy variables.
-They must be valid function identifiers.
+They must be valid function identifiers. 
+Same name_of_set can used for different variables without conflict.
+Take care: 
+There is no check for conflicts with predefined class methods. 
 
 Fuzzy variables provide a method to fuzzify input values:
 
@@ -240,7 +371,7 @@ Fuzzy variables provide a method to fuzzify input values:
 
 according to the defined sets and their membership functions.
 
-The memberships of the sets of $var are accessible
+The memberships of the sets of C<$var> are accessible
 by the respective functions:
 
     my $membership_degree = $var->$name_of_set();
@@ -302,6 +433,45 @@ corresponds to "or" operations (aggregation of rules).
 
 Only a reset can reset C<$var_3>. 
 
+=head2 PDL awareness
+
+Membership degrees of sets might be either scalars or piddles now.
+
+    $var_a->memb_fun_a(        5  ); # degree of memb_fun_a is a scalar
+    $var_a->memb_fun_b( pdl(7, 8) ); # degree of memb_fun_b is a piddle
+
+Empty piddles are not allowed, behaviour with bad values is not tested.
+
+Fuzzification (hence calculating degrees) accepts piddles:
+
+    $var_b->fuzzify( pdl([1, 2], [3, 4]) );
+
+Defuzzification returns a piddle if any of the membership
+degrees of the function's sets is a piddle:
+
+    my $val = $var_a->defuzzify(); # $var_a returns a 1dim piddle with two elements
+
+So do the fuzzy operations as provided by the fuzzy engine C<$fe> itself.
+
+Any operation on more then one piddle expands those to common
+dimensions, if possible, or throws a PDL error otherwise. 
+
+The way expansion is done is best explained by code
+(see C<< AI::FuzzyEngine->_cat_array_of_piddles(@pdls) >>).
+Assuming all piddles are in C<@pdls>,
+calculation goes as follows:
+
+    # Get the common dimensions
+    my $zeros = PDL->pdl(0);
+    # Note: $zeros += $_->zeros() for @pdls does not work here
+    $zeros = $zeros + $_->zeros() for @pdls;
+
+    # Expand all piddles
+    @pdls = map {$_ + $zeros} @pdls;
+
+Defuzzification uses some heavy non-threading code,
+so there might be a performance penalty for big piddles. 
+
 =head2 Todos
 
 =over 2
@@ -310,9 +480,12 @@ Only a reset can reset C<$var_3>.
 
 =item More checks on input arguments and allowed method calls
 
-=item Make the module PDL aware
+=item PDL awareness: Use threading in C<< $variable->defuzzify >>
 
 =item Split tests into API tests and test of internal functions
+
+=item Check how to allow CPANtesters to test PDL awareness without
+      requiring PDL by installation / test
 
 =back
 
@@ -335,32 +508,9 @@ You can find documentation for this module with the perldoc command.
 
     perldoc AI::FuzzyEngine
 
-
-You can also look for information at:
-
-=over 4
-
-=item * RT: CPAN's request tracker (report bugs here)
-
-L<http://rt.cpan.org/NoAuth/Bugs.html?Dist=AI-FuzzyEngine>
-
-=item * AnnoCPAN: Annotated CPAN documentation
-
-L<http://annocpan.org/dist/AI-FuzzyEngine>
-
-=item * CPAN Ratings
-
-L<http://cpanratings.perl.org/d/AI-FuzzyEngine>
-
-=item * Search CPAN
-
-L<http://search.cpan.org/dist/AI-FuzzyEngine/>
-
-=back
-
 =head1 AUTHOR
 
-Juergen Mueck, jurgen.muck@yahoo.de
+Juergen Mueck, jmueck@cpan.org
 
 =head1 COPYRIGHT
 
