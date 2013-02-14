@@ -207,8 +207,8 @@ subtest "$var_class defuzzification with piddles" => sub {
 };
 
 subtest 'PDL synopsis' => sub {
-    use PDL;
-    use AI::FuzzyEngine;
+#    use PDL;
+#    use AI::FuzzyEngine;
 
     # (Probably a stupide example)
     my $fe       = AI::FuzzyEngine->new();

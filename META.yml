@@ -10,8 +10,9 @@ build_requires:
   Test::More: 0
   Test::Most: 0
 configure_requires:
-  Module::Build: 0.36
-generated_by: 'Module::Build version 0.3607'
+  Module::Build: 0.38
+dynamic_config: 1
+generated_by: 'Module::Build version 0.38, CPAN::Meta::Converter version 2.112150'
 license: perl
 meta-spec:
   url: http://module-build.sourceforge.net/META-spec-v1.4.html
@@ -20,15 +21,15 @@ name: AI-FuzzyEngine
 provides:
   AI::FuzzyEngine:
     file: lib/AI/FuzzyEngine.pm
-    version: v0.2.0
+    version: v0.2.1
   AI::FuzzyEngine::Set:
     file: lib/AI/FuzzyEngine/Set.pm
-    version: v0.1.2
+    version: v0.2.1
   AI::FuzzyEngine::Variable:
     file: lib/AI/FuzzyEngine/Variable.pm
-    version: v0.1.2
+    version: v0.2.1
 requires:
   perl: 5.008009
 resources:
   license: http://dev.perl.org/licenses/
-version: v0.2.0
+version: v0.2.1

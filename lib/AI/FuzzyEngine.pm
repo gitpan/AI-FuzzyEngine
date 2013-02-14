@@ -1,7 +1,7 @@
 package AI::FuzzyEngine;
 
 use 5.008009;
-use version; our $VERSION = qv('v0.2.0'); # PDL aware
+use version; our $VERSION = qv('v0.2.1'); # PDL aware, test fixed
 
 use strict;
 use warnings;

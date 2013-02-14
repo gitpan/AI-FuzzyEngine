@@ -11,3 +11,4 @@ t/01-fuzzyEngine.t
 t/02-fuzzyEngine-pdl_aware.t
 Makefile.PL
 META.yml
+META.json

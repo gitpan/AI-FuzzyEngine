@@ -10,4 +10,8 @@ Revision history for AI-FuzzyEngine
         PDL awareness
         Tests re-factored
         requires perl 5.8.9
-        
+        POD improved, PDL sections added
+
+0.2.1   2013-02-14
+        Bug in test fixed (use PDL removed)
+        versioning of Set and Variable adapted
