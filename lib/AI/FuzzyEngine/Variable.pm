@@ -1,7 +1,7 @@
 package AI::FuzzyEngine::Variable;
 
 use 5.008009;
-use version; our $VERSION = qv('v0.2.1'); # PDL aware, test fixed
+use version 0.77; our $VERSION = version->declare('v0.2.2');
 
 use strict;
 use warnings;
@@ -42,6 +42,7 @@ sub fuzzyEngine { shift->{fuzzyEngine} };
 
 sub is_valid_set {
     my ($self, $set_name) = @_;
+    # Should be simplified to exists $self->{sets}{$set_name}
     return List::MoreUtils::any { $_ eq $set_name } keys %{ $self->sets };
 }
 
@@ -119,7 +120,29 @@ sub reset {
     my ($self) = @_;
     $_->reset() for values %{$self->sets};
     return $self;
-};
+}
+
+sub change_set {
+    my ($self, $setname, $new_memb_fun) = @_;
+    my $set = $self->set( $setname );
+
+    # Some checks
+    croak "Set $setname does not exist" unless defined $set;
+    croak 'Variable is internal' if $self->is_internal;
+
+    # Convert to internal representation
+    my $fun = $self->_curve_to_fun( $new_memb_fun );
+
+    # clip membership function to borders
+    $set->set_x_limits( $fun, $self->from => $self->to );
+
+    # Hand the new function over to the set
+    $set->replace_memb_fun( $fun );
+
+    # and reset the variable
+    $self->reset;
+    return;
+}
 
 sub _init {
     my ($self, @pars) = @_;

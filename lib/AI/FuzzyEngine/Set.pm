@@ -1,7 +1,7 @@
 package AI::FuzzyEngine::Set;
 
 use 5.008009;
-use version; our $VERSION = qv('v0.2.1'); # PDL aware, test fixed
+use version 0.77; our $VERSION = version->declare('v0.2.2');
 
 use strict;
 use warnings;
@@ -110,6 +110,9 @@ sub _interpol {
     my ($val_y) = $val_x->interpolate( PDL->pdl(@x), PDL->pdl(@y) );
     return $val_y;
 }
+
+# Some functions are not marked private (using leading '_')
+# but should be used by AI::FuzzyEngine::Variable only:
 
 sub set_x_limits {
     my ($class, $fun, $from, $to) = @_;
@@ -398,6 +401,13 @@ sub reset {
     $self;
 }
 
+# Replace a membership function
+# To be called by variable->change_set( 'setname' => $new_fun );
+sub replace_memb_fun {
+    my ($self, $new_fun) = @_;
+    $self->{memb_fun} = $new_fun;
+    return;
+}
 
 1;
 

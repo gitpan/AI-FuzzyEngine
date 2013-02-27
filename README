@@ -1,4 +1,4 @@
-AI-FuzzyEngine v0.2.1
+AI-FuzzyEngine v0.2.2
 
 This module is yet another implementation of a fuzzy inference system.
 The aim was to  be able to code rules (no string parsing),

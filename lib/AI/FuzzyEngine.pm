@@ -1,7 +1,7 @@
 package AI::FuzzyEngine;
 
 use 5.008009;
-use version; our $VERSION = qv('v0.2.1'); # PDL aware, test fixed
+use version 0.77; our $VERSION = version->declare('v0.2.2');
 
 use strict;
 use warnings;
@@ -48,6 +48,10 @@ sub not {
     my ($self, $val) = @_;
     return 1-$val;
 }
+
+sub true  { return 1 }
+
+sub false { return 0 }
 
 sub new_variable {
     my ($self, @pars) = @_;
@@ -111,7 +115,7 @@ sub _cat_array_of_piddles {
 
 =head1 NAME
 
-AI::FuzzyEngine - A growing Fuzzy Engine, PDL aware
+AI::FuzzyEngine - A Fuzzy Engine, PDL aware
 
 =head1 SYNOPSIS
 
@@ -128,6 +132,10 @@ AI::FuzzyEngine - A growing Fuzzy Engine, PDL aware
     my $b = $fe->and( 0.2, 0.5, 0.8, 0.7 ); # 0.2
     # Negation:
     my $c = $fe->not( 0.4 );                # 0.6
+    # Always true:
+    my $t = $fe->true();                    # 1.0
+    # Always false:
+    my $f = $fe->false();                   # 0.0
 
     # These functions are constitutive for the operations
     # on the fuzzy sets of the fuzzy variables:
@@ -137,7 +145,7 @@ AI::FuzzyEngine - A growing Fuzzy Engine, PDL aware
     # input variables need definition of membership functions of their sets
     my $flow = $fe->new_variable( 0 => 2000,
                         small => [0, 1,  500, 1, 1000, 0                  ],
-                        med   => [       500, 0, 1000, 1, 1500, 0         ],
+                        med   => [       400, 0, 1000, 1, 1500, 0         ],
                         huge  => [               1000, 0, 1500, 1, 2000, 1],
                    );
     my $cap  = $fe->new_variable( 0 => 1800,
@@ -162,6 +170,11 @@ AI::FuzzyEngine - A growing Fuzzy Engine, PDL aware
 
     # Reset a fuzzy variable directly
     $flow->reset;
+
+    # Membership functions can be changed via the set's variable.
+    # This might be useful during parameter identification algorithms
+    # Changing a function resets the respective variable.
+    $flow->change_set( med => [500, 0, 1000, 1, 1500, 0] );
 
     # Fuzzification of input variables
     $flow->fuzzify( 600 );
@@ -321,6 +334,10 @@ is I<1-degree> of membership degree
 
 is I<Maximum>
 
+=item True C<< $fe->true() >> and false C<< $fe->false() >>
+
+are provided for convenience.
+
 =back
 
 Defuzzification is based on
@@ -360,9 +377,9 @@ Once built, the engine can create fuzzy variables by C<new_variable>:
 Result is an L<AI::FuzzyEngine::Variable>.
 The name_of_set strings are taken to assign corresponding methods
 for the respective fuzzy variables.
-They must be valid function identifiers. 
+They must be valid function identifiers.
 Same name_of_set can used for different variables without conflict.
-Take care: 
+Take care:
 There is no check for conflicts with predefined class methods. 
 
 Fuzzy variables provide a method to fuzzify input values:
@@ -376,7 +393,7 @@ by the respective functions:
 
     my $membership_degree = $var->$name_of_set();
 
-Memberships can be assigned directly (within rules for example):
+Membership degrees can be assigned directly (within rules for example):
 
     $var->$name_of_set( $membership_degree );
 
@@ -403,6 +420,16 @@ that have been created by its C<new_variable> method.
 A variable can be defuzzified:
 
     my $out_value = $var->defuzzify();
+
+Membership functions can be replaced via a set's variable:
+
+    $var->change_set( $name_of_set => [$x11n, $y11n, $x12n, $y12n, ... ] );
+
+The variable will be reset when replacing a membership function
+of any of its sets.
+Interdependencies with other variables are not checked
+(it might happen that the results of any rules are no longer valid,
+so it needs some recalculations).
 
 Sometimes internal variables are used that need neither fuzzification
 nor defuzzification.
@@ -482,10 +509,7 @@ so there might be a performance penalty for big piddles.
 
 =item PDL awareness: Use threading in C<< $variable->defuzzify >>
 
-=item Split tests into API tests and test of internal functions
-
-=item Check how to allow CPANtesters to test PDL awareness without
-      requiring PDL by installation / test
+=item Divide tests into API tests and test of internal functions
 
 =back
 

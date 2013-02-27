@@ -1,5 +1,5 @@
 {
-   "abstract" : "A growing Fuzzy Engine, PDL aware",
+   "abstract" : "A Fuzzy Engine, PDL aware",
    "author" : [
       "Juergen Mueck <jmueck@cpan.org>"
    ],
@@ -38,15 +38,15 @@
    "provides" : {
       "AI::FuzzyEngine" : {
          "file" : "lib/AI/FuzzyEngine.pm",
-         "version" : "v0.2.1"
+         "version" : "v0.2.2"
       },
       "AI::FuzzyEngine::Set" : {
          "file" : "lib/AI/FuzzyEngine/Set.pm",
-         "version" : "v0.2.1"
+         "version" : "v0.2.2"
       },
       "AI::FuzzyEngine::Variable" : {
          "file" : "lib/AI/FuzzyEngine/Variable.pm",
-         "version" : "v0.2.1"
+         "version" : "v0.2.2"
       }
    },
    "release_status" : "stable",
@@ -55,5 +55,5 @@
          "http://dev.perl.org/licenses/"
       ]
    },
-   "version" : "v0.2.1"
+   "version" : "v0.2.2"
 }

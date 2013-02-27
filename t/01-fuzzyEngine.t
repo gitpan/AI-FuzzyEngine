@@ -38,6 +38,14 @@ subtest "$class operations" => sub {
     # Negation:
     my $c = $fe->not( 0.4 );
     is( $c, 0.6, '"not"' );
+
+    # True:
+    my $t = $fe->true();
+    is( $t, 1.0, '"true"' );
+
+    # False:
+    my $f = $fe->false();
+    is( $f, 0.0, '"false"' );
 };
 
 subtest "Class $set_class _copy_fun" => sub {
@@ -222,6 +230,20 @@ subtest "$set_class methods" => sub {
               } qr/no double/i, 'Checks double interpolation coordinates';
 };
 
+subtest "$set_class special memb_fun methods" => sub {
+
+    # Replace a membership function
+    my $s = $set_class->new(%set_pars);
+    is_deeply( $s->memb_fun, [[7, 8] => [0, 1]],
+               '(preconditions)',
+             ) or diag 'Test broken, check precondition';
+
+    my $new_fun = [ [5, 6] => [0.5, 0.7] ];
+    $s->replace_memb_fun( $new_fun );
+    is_deeply( $s->memb_fun, $new_fun, 'replace_memb_fun' );
+    1;
+};
+
 subtest "$var_class functions" => sub {
 
     my $memb_fun = $var_class->_curve_to_fun( [8=>1, 7=>0] );
@@ -326,6 +348,32 @@ subtest "$var_class completing membership functions in x" => sub {
              );
 };
 
+subtest "$var_class change_set" => sub {
+    my $v  = $var_class->new( $fe,
+                              0 => 10,
+                              'low'  => [ 3, 1,  6, 0],
+                              # becomes [ [0, 3, 6, 10] => [1, 1, 0, 0] ],
+                              'high' => [ -5, 0, 15, 1],
+                            );
+
+    $v->fuzzify( 5 ); # $v->low > 0 && $v->high > 0
+
+    my $new_memb_fun = [2, 1, 8, 0];
+    $v->change_set( low => $new_memb_fun );
+
+    is_deeply( $v->sets->{low}->memb_fun(),
+               [ [0, 2, 8, 10] => [1, 1, 0, 0] ],
+               'change_set works and adapts borders in x',
+             );
+
+    is_deeply( [$v->low, $v->high], [0, 0], 'change_set resets the variable' );
+
+    throws_ok { $v->change_set( 'wrong_set' )
+              } qr/set/i, 'change_set checks correct set name';
+
+    1;
+};
+
 subtest "$var_class fuzzification and defuzzification" => sub {
 
     my $v  = $var_class->new( $fe,
@@ -420,6 +468,8 @@ subtest "$var_class (internal) methods" => sub {
               } qr/internal/, 'Checks illegal fuzzify call';
     throws_ok { $v->defuzzify
               } qr/internal/, 'Checks illegal defuzzify call';
+    throws_ok { $v->change_set( low => [[]=>[]] )
+              } qr/internal/i, 'Blocks change_set';
 };
 
 $fe = $class->new();
@@ -476,6 +526,10 @@ subtest 'synopsis' => sub {
     my $b = $fe->and( 0.2, 0.5, 0.8, 0.7 ); # 0.2
     # Negation:
     my $c = $fe->not( 0.4 );                # 0.6
+    # Always true:
+    my $t = $fe->true();                    # 1.0
+    # Always false:
+    my $f = $fe->false();                   # 0.0
 
     # These functions are constitutive for the operations
     # on the fuzzy sets of the fuzzy variables:
@@ -485,7 +539,7 @@ subtest 'synopsis' => sub {
     # input variables need definition of membership functions of their sets
     my $flow = $fe->new_variable( 0 => 2000,
                         small => [0, 1,  500, 1, 1000, 0                  ],
-                        med   => [       500, 0, 1000, 1, 1500, 0         ],
+                        med   => [       400, 0, 1000, 1, 1500, 0         ],
                         huge  => [               1000, 0, 1500, 1, 2000, 1],
                    );
     my $cap  = $fe->new_variable( 0 => 1800,
@@ -510,6 +564,11 @@ subtest 'synopsis' => sub {
 
     # Reset a fuzzy variable directly
     $flow->reset;
+
+    # Membership functions can be changed via the set's variable.
+    # This might be useful during parameter identification algorithms
+    # Changing a function resets the respective variable.
+    $flow->change_set( med => [500, 0, 1000, 1, 1500, 0] );
 
     # Fuzzification of input variables
     $flow->fuzzify( 600 );
